@@ -1,0 +1,188 @@
+#include<iostream>
+#include<vector>
+#include<string>
+using namespace std;
+class Bignum:public vector<int>   /*公有继承vector类，即在vector的对象上增加一些成员函数,且vector类已经重载=，因此之后也不需要再重载'='*/
+{
+public:
+	Bignum(int n = 0)             //默认构造函数，默认初始化为0
+	{
+		push_back(n);
+		check();
+	};
+	Bignum& check();             //成员函数，保持每个元素为0到9之间的数，进位作用
+	friend istream& operator>>(istream& is,Bignum&a );  //重载输入流符号
+	friend ostream& operator<<(ostream& os,Bignum a );    //重载输出流符号
+	bool operator<(const Bignum& b)         //重载<运算符 
+	{
+ 	if(size()!=b.size())return size()<b.size();
+	 for(int i=size()-1;i>=0;--i)
+ 		if((*this)[i]!=b[i])return (*this)[i]<b[i];
+ 	return 0;
+ 	}
+	        
+ 	bool operator>(Bignum &b)
+ 	{
+	 return b<(*this);
+	 }
+	bool operator>=(Bignum &b)
+	{
+	return !((*this)<b);	
+	}
+	bool operator<=(Bignum &b)
+	{
+	return !((*this)>b);
+	}
+	Bignum& operator+=( const Bignum &b);    //重载+=运算符
+	Bignum operator+(const Bignum& b);      //重载+运算符
+	Bignum& operator-=(  Bignum& b);    //重载-=运算符
+	Bignum operator-(  Bignum& b);     //重载-运算符
+	Bignum operator*(const Bignum& b)const;    //重载*运算符
+	Bignum& operator*=(const Bignum& b);        //重载*=运算符
+	Bignum divmod( Bignum &a,const Bignum& b);   
+	         //除法求余的成员函数
+	Bignum operator/(const Bignum& b);         //重载/运算符
+	Bignum& operator/=( const Bignum& b);        //重载/=运算符
+	Bignum& operator%=( const Bignum& b);         //重载%=运算符
+	Bignum operator%(const Bignum& b);         //重载%运算符
+};
+Bignum& Bignum::check() 
+{
+	while (!empty() && !back())pop_back();//去除最高位可能存在的0
+	if (empty())return *this;
+	for (int i = 1; i < size(); ++i)        //进位
+	{
+		(*this)[i] += (*this)[i - 1] / 10;
+		(*this)[i - 1] %= 10;
+	}
+	while (back() >= 10)                  //单独讨论首位，确定是否增加元素
+	{
+		push_back(back() / 10);
+		(*this)[size() - 2] %= 10;
+	}
+	return *this;//为使用方便，将进位后的自身返回引用
+};
+istream& operator>>(istream& is,Bignum& a)
+{
+	string s;
+	is >> s;
+	a.clear();
+	for (int i = s.size() - 1; i >= 0; --i)a.push_back(s[i] - '0');
+	return is;
+}
+ostream& operator<<(ostream& os,Bignum a)
+{
+	if (a.empty())os << 0;
+	for (int i = a.size() - 1; i >= 0; --i)os << a[i];
+	return os;
+}
+
+ Bignum& Bignum::operator+=( const Bignum& b)           //因为之前定义了check函数，操作简单了许多。
+{
+	if (size() < b.size())resize(b.size());
+	for (int i = 0; i != b.size(); ++i)(*this)[i] += b[i];
+	return check();
+}
+Bignum Bignum::operator+(const Bignum& b)
+{   
+	Bignum t=(*this); 
+	t+=b;
+	return t;
+}
+Bignum& Bignum::operator-=( Bignum& b)
+{
+	int m = 0;    Bignum c=b;                      //之后存在交换操作，所以引入形参保持原数据不变 
+	if ((*this) < c)swap(c),m=1;
+	for (int i = 0; i != c.size(); (*this)[i] -= c[i], ++i)
+		if ((*this)[i] < c[i])//需要借位
+		{
+			int j = i + 1;                  
+			while (!(*this)[j])++j;                         //确定距离i位置最近且不为零的较高位j的位置
+			while (j > i)                             
+			{
+				--(*this)[j];                               //借位过程j到i+1位之间的数都减去1  
+				(*this)[--j] += 10;                         //j-1到i位的数都加上10；
+			}
+		}
+	 check();
+	 if (m==1)back() = -back();                 //若为负数最高位的数取负值
+	 return (*this);
+}
+Bignum Bignum::operator-( Bignum& b)
+{   Bignum a=(*this)    ;
+	 return a-= b;
+}
+Bignum Bignum::operator*( const Bignum& b)const    
+{
+	Bignum n;                                   //因为乘法运算特殊性，若依然按照之前思路*this某一位运算后，再将值存储与该位，会超过int大小，因此这里引入形参。
+	n.assign(size() + b.size() - 1, 0);        //向量分配足够大小，初始化值位0
+	for (int i = 0; i != size(); ++i)
+	{
+		for (int j = 0; j != b.size(); ++j)    
+			n[i + j] += (*this)[i] * b[j];           //在多次循环后，中间位由于组合情况较多，依然有可能超过int大小，所以每次循环后进一次位。
+		for (int i = 1; i <n. size(); ++i)        //进位
+		{
+			n[i] += n[i - 1] / 10;
+			n[i - 1] %= 10;
+		}
+	}
+	return n.check();
+}
+Bignum& Bignum::operator*=(  const Bignum& b)
+{
+	return (*this) = (*this) * b;
+}
+Bignum Bignum::divmod( Bignum&a,const Bignum& b)
+{
+  Bignum ans;
+    for(int t=a.size()-b.size();a>=b; --t)
+    {
+       Bignum d;
+       if(t+1>0)
+        d.assign(t+1,0);
+        else break;
+        d.back()=1;
+        Bignum c=b*d;
+        while(a>=c)
+        {
+           
+		a-=c; 
+        ans+=d;
+        }
+    }
+    return ans;
+}
+Bignum Bignum:: operator /( const Bignum& b)
+{
+	return divmod((*this),b);
+}
+Bignum& Bignum:: operator/=(const Bignum& b)
+{
+	return (*this) = (*this)/ b;
+}
+Bignum& Bignum::operator%=( const Bignum & b)
+{
+	divmod((*this),b);
+	return (*this);
+}
+Bignum Bignum:: operator%(const Bignum& b)
+{   
+	Bignum t=(*this);
+	return t%=b;
+}
+int main()         //测试代码
+{
+	Bignum a, b;
+	cout<<"a=";
+	cin>>a;
+	cout<<"b=";	
+	cin>>b;
+	cout<<"a+b="<<a+b<<endl;
+	cout<<"a-b="<<a-b<<endl;
+	cout<<"a*b="<<a*b<<endl;
+	cout<<"a/b="<<a/b<<endl;
+	cout<<"a%b="<<a%b<<endl;
+	
+	
+	return 0;
+}
